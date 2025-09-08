@@ -1,0 +1,10 @@
+@print_single_int {
+    c: char = const '🔹';
+    print c;
+}
+
+@main {
+    a: int = const -100;
+    call @print_single_int;
+    print a;
+}

@@ -1,8 +1,14 @@
 @mod(a: int, b: int): int {
     q: int = div a b;
     sub_ : int = mul q b;
-    mod: int = sub a sub_;
-    ret mod;
+    remainder: int = sub a sub_;
+    zero: int = const 0;
+    flag: bool = ge remainder zero;
+    br flag .end .adjust;
+.adjust:
+    remainder: int = add remainder b;
+.end:    
+    ret remainder;
 }
 
 # Spigot algorithm for Pi
