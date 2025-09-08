@@ -1,0 +1,8 @@
+@main {
+    a: int = const 100;
+    b: int = const 6;
+    q: int = div a b;
+    sub_ : int = mul q b;
+    mod: int = sub a sub_;
+    print mod; 
+}
