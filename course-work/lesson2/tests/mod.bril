@@ -1,8 +1,14 @@
 @main {
-    a: int = const 100;
+    a: int = const -100;
     b: int = const 6;
     q: int = div a b;
     sub_ : int = mul q b;
-    mod: int = sub a sub_;
-    print mod; 
+    remainder: int = sub a sub_;
+    zero: int = const 0;
+    flag: bool = ge remainder zero;
+    br flag .end .adjust;
+.adjust:
+    remainder: int = add remainder b;
+.end:
+    print remainder; 
 }
