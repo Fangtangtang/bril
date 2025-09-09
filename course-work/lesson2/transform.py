@@ -12,7 +12,11 @@ def transform(program):
 
 
 if __name__ == "__main__":
-    assert len(sys.argv) == 2
-    with open(sys.argv[1], "r") as file:
-        program = json.load(file)
+    if len(sys.argv) > 1:
+        assert len(sys.argv) == 2
+        with open(sys.argv[1], "r") as file:
+            program = json.load(file)
+    else:
+        # json from stdin
+        program = json.loads(''.join(sys.stdin.readlines())) 
     print(json.dumps(transform(program)))
