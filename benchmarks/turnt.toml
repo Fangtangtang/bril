@@ -3,6 +3,11 @@ command = "bril2json < {filename} | brili -p {args}"
 output.out = "-"
 output.prof = "2"
 
+[envs.dce]
+default = false
+command = "bril2json < {filename} | python3 ../course-work/lesson3/dce.py | brili -p {args} 2> {filename}.log"
+output.out = "-"
+
 [envs.brilirs]
 default = false
 command = "cargo run --manifest-path ../brilirs/Cargo.toml --quiet -- --text --file {filename} -p {args}"
