@@ -20,8 +20,9 @@ class BasicBlock:
         return self.__str__()
 
 
-def construct_cfg(func):
-    print(func["name"])
+def construct_cfg(func, verbose=False):
+    if verbose:
+        print(func["name"])
     block_map: dict[str, BasicBlock] = {}
     bb = BasicBlock("entry")
     for inst in func["instrs"]:
@@ -44,10 +45,13 @@ def construct_cfg(func):
             for label in bb.successors:
                 block_map[label].precursors.add(bb.label)
 
-    for bb in block_map.values():
-        print(bb)
-        print("\t", bb.precursors)
-        print("\t", bb.successors)
+    if verbose:
+        for bb in block_map.values():
+            print(bb)
+            print("\t", bb.precursors)
+            print("\t", bb.successors)
+
+    return block_map
 
 
 if __name__ == "__main__":
@@ -59,4 +63,4 @@ if __name__ == "__main__":
         # json from stdin
         program = json.loads("".join(sys.stdin.readlines()))
     for func in program["functions"]:
-        construct_cfg(func)
+        bbs: dict[str, BasicBlock] = construct_cfg(func)
