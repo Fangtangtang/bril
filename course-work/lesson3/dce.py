@@ -89,7 +89,6 @@ def lvn(func):
                 elif op == "call":
                     op += f"@{instr.instr["funcs"]}"
                 idx, new_name = lvn_table.find_value(op, args, dest)
-                # print(idx, new_name)
                 if new_name is not None:
                     rename_map[dest] = new_name
                     var2num[new_name] = idx
@@ -117,8 +116,7 @@ if __name__ == "__main__":
     else:
         # json from stdin
         program = json.loads("".join(sys.stdin.readlines()))
-    # print(json.dumps(dce_v2(program)))
     for func in program["functions"]:
         lvn(func)
-        # print(func)
-    print(json.dumps((program)))
+    # print(json.dumps((program)))
+    print(json.dumps(dce_v2(program)))
