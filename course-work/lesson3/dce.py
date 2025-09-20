@@ -25,6 +25,7 @@ def dce_v1(program):
 
 
 def dce_v2(program):
+    update = False
     for func in program["functions"]:
         bbs: dict[str, BasicBlock] = construct_cfg(func)
         for bb in bbs.values():
@@ -56,8 +57,9 @@ def dce_v2(program):
                 if inst is not None and "dest" in inst and not inst["dest"] in used:
                     func["instrs"][idx] = None
                     updated = True
-        clean(func)
-    return program
+        if clean(func):
+            updated = True
+    return updated
 
 
 def lvn(func):
@@ -132,4 +134,5 @@ if __name__ == "__main__":
     for func in program["functions"]:
         lvn(func)
     # print(json.dumps((program)))
-    print(json.dumps(dce_v2(program)))
+    dce_v2(program)
+    print(json.dumps(program))

@@ -4,7 +4,6 @@ from collections import deque
 
 from utility.cfg import construct_cfg, BasicBlock
 from utility.lvn import Const, run_lvn
-from utility.transform import clean
 from lesson3.dce import dce_v2
 
 
@@ -31,7 +30,8 @@ def analyze(func):
             }
             for prec in basic_block.precursors:
                 prec_out = const_out[prec]
-                for var_name, val in const_in.items():
+                const_in_ = dict(const_in)
+                for var_name, val in const_in_.items():
                     if val is None:
                         const_in[var_name] = prec_out[var_name]
                     elif val != prec_out[var_name]:
@@ -63,6 +63,14 @@ def analyze(func):
         run_lvn(bb, get_const_in(bb))
 
 
+def converge(program):
+    for func in program["functions"]:
+        analyze(func)
+    while dce_v2(program):
+        for func in program["functions"]:
+            analyze(func)
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         assert len(sys.argv) == 2
@@ -71,6 +79,5 @@ if __name__ == "__main__":
     else:
         # json from stdin
         program = json.loads("".join(sys.stdin.readlines()))
-    for func in program["functions"]:
-        analyze(func)
-    print(json.dumps(dce_v2(program)))
+    converge(program)
+    print(json.dumps((program)))

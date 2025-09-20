@@ -39,4 +39,4 @@ def main(directory, output_csv="results.csv"):
 
 
 if __name__ == "__main__":
-    main("../../benchmarks/core", "results.csv")
+    main("../../benchmarks/core", "results1.csv")
