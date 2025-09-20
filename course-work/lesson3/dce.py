@@ -1,7 +1,7 @@
 import sys
 import json
 from utility.cfg import construct_cfg, BasicBlock, Instruction
-from utility.lvn import LVNTable
+from utility.lvn import LVNTable, Const
 from utility.transform import clean
 
 # [NOTE]: for benchmarks/core, benchmarks/float, benchmarks/long
@@ -85,7 +85,12 @@ def lvn(func):
                 dest = instr.instr["dest"]
                 op = instr.instr["op"]
                 if op == "const":
-                    args.append(instr.instr["value"])
+                    value = instr.instr["value"]
+                    if instr.instr["type"] == "float":
+                        value = float(value)
+                    elif instr.instr["type"] == "bool":
+                        value = bool(value)
+                    args.append(value)
                 elif op == "call":
                     op += f"@{instr.instr["funcs"]}"
                 idx, new_name = lvn_table.find_value(op, args, dest)
@@ -96,6 +101,13 @@ def lvn(func):
                 else:
                     rename_map[dest] = dest
                     var2num[dest] = idx
+                if isinstance(lvn_table.table[idx].value, Const):
+                    dest = instr.instr["dest"]
+                    instr.instr.clear()
+                    instr.instr["dest"] = dest
+                    instr.instr["op"] = "const"
+                    instr.instr["type"] = lvn_table.table[idx].value.dtype
+                    instr.instr["value"] = lvn_table.table[idx].value.val
         rename ={}
         for name_, new_name_ in rename_map.items():
             if name_ != new_name_:
