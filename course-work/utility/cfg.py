@@ -1,5 +1,6 @@
 import sys
 import json
+from collections import deque
 
 
 class Instruction:
@@ -61,13 +62,29 @@ def construct_cfg(func, verbose=False):
             for label in bb.successors:
                 block_map[label].precursors.add(bb.label)
 
+    # clean up
+    clean_block_map = {}
+    bfs_list = deque()
+    bfs_list.append(block_map["entry"])
+    while bfs_list:
+        bb: BasicBlock = bfs_list.popleft()
+        clean_block_map[bb.label] = bb
+        if bb.successors is not None:
+            for suc in bb.successors:
+                if suc not in clean_block_map:
+                    bfs_list.append(block_map[suc])
+    for bb in clean_block_map.values():
+        bb.precursors &= clean_block_map.keys()
+        if bb.successors is not None:
+            bb.successors &= clean_block_map.keys()
+
     if verbose:
         for bb in block_map.values():
             print(bb)
             print("\t", bb.precursors)
             print("\t", bb.successors)
 
-    return block_map
+    return clean_block_map
 
 
 if __name__ == "__main__":

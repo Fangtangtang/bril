@@ -62,6 +62,7 @@ def dce_v2(program):
 
 def lvn(func):
     bbs: dict[str, BasicBlock] = construct_cfg(func)
+    
     for bb in bbs.values():
         rename_map: dict[str, str] = {}
         var2num: dict[str, int] = {}
@@ -73,7 +74,7 @@ def lvn(func):
                     if arg in rename_map:
                         arg = rename_map[arg]
                     if arg not in var2num:
-                        idx = lvn_table.add_entry(arg)
+                        idx = lvn_table.add_entry(arg, arg)
                         var2num[arg] = idx
                         rename_map[arg] = arg
                         args.append(idx)

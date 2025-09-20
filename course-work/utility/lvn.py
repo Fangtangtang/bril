@@ -1,4 +1,4 @@
-# TODO: use eval to perform some constant folding
+from .cfg import BasicBlock
 op_map = {
     "ne": "!=",
     "eq": "==",
@@ -24,7 +24,7 @@ op_map = {
     "fdiv": "/",
 }
 
-commutative = {"ne", "eq", "and", "or", "add", "mul"}
+commutative = {"ne", "eq", "feq", "and", "or", "add", "mul", "fadd", "fmul"}
 
 
 class Const:
@@ -32,7 +32,14 @@ class Const:
         self.val = value
         self.dtype = type(value).__name__
 
+    def __eq__(self, other):
+        if not isinstance(other, Const):
+            return NotImplemented
+        return self.val == other.val and self.dtype == other.dtype
 
+    def __repr__(self):
+        return f"Const(val={self.val}, dtype={self.dtype})"
+    
 class LVNTableEntry:
     def __init__(self, value, name):
         self.value = value
@@ -49,8 +56,8 @@ class LVNTable:
     def __init__(self):
         self.table: list[LVNTableEntry] = []
 
-    def add_entry(self, name) -> int:
-        table_entry = LVNTableEntry(name, name)
+    def add_entry(self, value, name) -> int:
+        table_entry = LVNTableEntry(value, name)
         self.table.append(table_entry)
         return len(self.table) - 1
 
@@ -88,3 +95,64 @@ class LVNTable:
         table_entry = LVNTableEntry(val, new_name)
         self.table.append(table_entry)
         return (len(self.table) - 1, new_name)
+
+def run_lvn(bb:BasicBlock, live_in: dict = None):
+    rename_map: dict[str, str] = {}
+    var2num: dict[str, int] = {}
+    lvn_table = LVNTable()
+    for instr in bb.instrs:
+        args = []
+        if "args" in instr.instr:
+            for i, arg in enumerate(instr.instr["args"]):
+                if arg in rename_map:
+                    arg = rename_map[arg]
+                if arg not in var2num:
+                    if live_in is not None and arg in live_in:
+                        idx = lvn_table.add_entry(live_in[arg], arg)
+                    else:
+                        idx = lvn_table.add_entry(arg, arg)
+                    var2num[arg] = idx
+                    rename_map[arg] = arg
+                    args.append(idx)
+                else:
+                    idx = var2num[arg]
+                    instr.instr["args"][i] = lvn_table.table[idx].name
+                    args.append(idx)
+        if "op" in instr.instr and "dest" in instr.instr:
+            dest = instr.instr["dest"]
+            op = instr.instr["op"]
+            if op == "const":
+                value = instr.instr["value"]
+                if instr.instr["type"] == "float":
+                    value = float(value)
+                elif instr.instr["type"] == "bool":
+                    value = bool(value)
+                args.append(value)
+            elif op == "call":
+                op += f"@{instr.instr["funcs"]}"
+            idx, new_name = lvn_table.find_value(op, args, dest)
+            if new_name is not None:
+                rename_map[dest] = new_name
+                var2num[new_name] = idx
+                instr.instr["dest"] = new_name
+            else:
+                rename_map[dest] = dest
+                var2num[dest] = idx
+            if isinstance(lvn_table.table[idx].value, Const):
+                dest = instr.instr["dest"]
+                instr.instr.clear()
+                instr.instr["dest"] = dest
+                instr.instr["op"] = "const"
+                instr.instr["type"] = lvn_table.table[idx].value.dtype
+                instr.instr["value"] = lvn_table.table[idx].value.val
+    rename ={}
+    for name_, new_name_ in rename_map.items():
+        if name_ != new_name_:
+            rename[new_name_] = name_
+    for instr in bb.instrs:
+        if "args" in instr.instr:
+            for i, arg in enumerate(instr.instr["args"]):
+                if arg in rename:
+                    instr.instr["args"][i]= rename[arg]
+        if "dest" in instr.instr and  instr.instr["dest"] in rename:
+            instr.instr["dest"] = rename[ instr.instr["dest"]]
