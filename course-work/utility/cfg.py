@@ -2,6 +2,7 @@ import sys
 import json
 from collections import deque
 
+ENTRY_NAME = "entry"
 
 class Instruction:
     def __init__(self, instr, idx):
@@ -37,7 +38,7 @@ def construct_cfg(func, verbose=False):
     if verbose:
         print(func["name"])
     block_map: dict[str, BasicBlock] = {}
-    bb = BasicBlock("entry")
+    bb = BasicBlock(ENTRY_NAME)
     for idx, inst in enumerate(func["instrs"]):
         if "label" in inst:
             block_map[bb.label] = bb
@@ -65,7 +66,7 @@ def construct_cfg(func, verbose=False):
     # clean up
     clean_block_map = {}
     bfs_list = deque()
-    bfs_list.append(block_map["entry"])
+    bfs_list.append(block_map[ENTRY_NAME])
     while bfs_list:
         bb: BasicBlock = bfs_list.popleft()
         clean_block_map[bb.label] = bb
