@@ -1,8 +1,10 @@
 import sys
 import json
+import copy
 from collections import deque
 
 ENTRY_NAME = "entry"
+
 
 class Instruction:
     def __init__(self, instr, idx):
@@ -86,6 +88,67 @@ def construct_cfg(func, verbose=False):
             print("\t", bb.successors)
 
     return clean_block_map
+
+
+class CFG:
+    def __init__(self, func, construct_dag=False):
+        self.bbs: dict[str, BasicBlock] = construct_cfg(func)
+        if construct_dag:
+            self.construct_dag()
+        else:
+            self.dag_bbs: dict[str, BasicBlock] = None
+
+    def construct_dag(self):
+        self.dag_bbs: dict[str, BasicBlock] = copy.deepcopy(self.bbs)
+
+        def analysis_path(current_path: list[str]):
+            current_bb = current_path[-1]
+            if self.bbs[current_bb].successors is not None:
+                for suc in self.bbs[current_bb].successors:
+                    if not suc in current_path:
+                        new_path = current_path.copy()
+                        new_path.append(suc)
+                        analysis_path(new_path)
+                    else:
+                        if suc in self.dag_bbs[current_bb].successors:
+                            self.dag_bbs[current_bb].successors.remove(suc)
+                        if current_bb in self.dag_bbs[suc].precursors:
+                            self.dag_bbs[suc].precursors.remove(current_bb)
+
+        analysis_path([ENTRY_NAME])
+
+    # TODO: parse from dumped file
+
+    def reverse_post_order(self):
+        # (shihan): it construct a DFS tree and give the index order
+        visited = set()
+        order = []
+
+        def dfs_post_order(bb_label):
+            if bb_label in visited:
+                return
+            visited.add(bb_label)
+            if self.bbs[bb_label].successors is not None:
+                for suc in self.bbs[bb_label].successors:
+                    dfs_post_order(suc)
+            order.append(bb_label)
+
+        dfs_post_order(ENTRY_NAME)
+        return list(reversed(order))
+
+    def topological_order(self):
+        if self.dag_bbs is None:
+            self.construct_dag()
+        order = [ENTRY_NAME]
+        while len(order) < len(self.dag_bbs):
+            for bb_label, bb in self.dag_bbs.items():
+                if bb_label in order:
+                    continue
+                if all(pred in order for pred in bb.precursors):
+                    order.append(bb_label)
+        return order
+
+    # TODO: dump CFG
 
 
 if __name__ == "__main__":
