@@ -1,6 +1,3 @@
-import sys
-import json
-import copy
 from collections import deque
 from .ds import LinkedList, ListNode
 
@@ -57,60 +54,6 @@ class BasicBlock:
 
     def __repr__(self):
         return self.__str__()
-
-
-def construct_cfg(func, verbose=False):
-    if verbose:
-        print(func["name"])
-    block_map: dict[str, BasicBlock] = {}
-    bb = BasicBlock(ENTRY_NAME)
-    for idx, inst in enumerate(func["instrs"]):
-        if "label" in inst:
-            block_map[bb.label] = bb
-            if bb.successors is not None and len(bb.successors) == 0:
-                bb.successors.add(inst["label"])
-            bb = BasicBlock(inst["label"])
-        elif "op" in inst:
-            bb.instr_nodes.append(Instruction(inst, idx))
-            if inst["op"] == "br" or inst["op"] == "jmp":
-                bb.successors.update(inst["labels"])
-                block_map[bb.label] = bb
-                bb = BasicBlock()
-            elif inst["op"] == "ret":
-                bb.successors = None
-                block_map[bb.label] = bb
-                bb = BasicBlock()
-        else:
-            raise ValueError("Unknown")
-    block_map[bb.label] = bb
-    for bb in block_map.values():
-        if bb.successors is not None:
-            for label in bb.successors:
-                block_map[label].precursors.add(bb.label)
-
-    # clean up
-    clean_block_map = {}
-    bfs_list = deque()
-    bfs_list.append(block_map[ENTRY_NAME])
-    while bfs_list:
-        bb: BasicBlock = bfs_list.popleft()
-        clean_block_map[bb.label] = bb
-        if bb.successors is not None:
-            for suc in bb.successors:
-                if suc not in clean_block_map:
-                    bfs_list.append(block_map[suc])
-    for bb in clean_block_map.values():
-        bb.precursors &= clean_block_map.keys()
-        if bb.successors is not None:
-            bb.successors &= clean_block_map.keys()
-
-    if verbose:
-        for bb in block_map.values():
-            print(bb)
-            print("\t", bb.precursors)
-            print("\t", bb.successors)
-
-    return clean_block_map
 
 
 class CFG:
@@ -179,6 +122,7 @@ class CFG:
         if construct_dag:
             self.construct_dag()
         else:
+            # only placeholders for dom analysis
             self.dag_bbs: dict[str, BasicBlock] = None
 
     def construct_dag(self):
@@ -288,16 +232,11 @@ class CFG:
                         self.dom_frontier[runner].add(bb.label)
                         runner = imm_doms[runner]
 
+    def update_func_inst(self):
+        instr_list = []
+        instrs: list[Instruction] = self.inst_list.linked_to_list()
+        for instr in instrs:
+            instr_list.append(instr.instr)
+        self.func["instrs"] = instr_list
+
     # TODO: dump CFG
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        assert len(sys.argv) == 2
-        with open(sys.argv[1], "r") as file:
-            program = json.load(file)
-    else:
-        # json from stdin
-        program = json.loads("".join(sys.stdin.readlines()))
-    for func in program["functions"]:
-        bbs: dict[str, BasicBlock] = construct_cfg(func)

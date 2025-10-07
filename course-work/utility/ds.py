@@ -19,7 +19,7 @@ class LinkedList(Generic[T]):
         prev: ListNode[T] = None
         node_list: list[ListNode[T]] = []
         for val in val_list:
-            new_node = ListNode[T](val, prev, None)
+            new_node = ListNode[T](val, None, prev)
             node_list.append(new_node)
             if self.head is None:
                 self.head = new_node
