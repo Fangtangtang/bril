@@ -2,6 +2,7 @@ import sys
 import json
 import copy
 from collections import deque
+from .ds import LinkedList, ListNode
 
 ENTRY_NAME = "entry"
 
@@ -31,26 +32,28 @@ class PhiInstruction(Instruction):
         self.label2value: dict[str, str] = {}
 
     def add_value(self, label, var):
-        self.label2value[label]= var
+        self.label2value[label] = var
         self.instr["args"].append(var)
         self.instr["args"].append(label)
+
 
 class BasicBlock:
     cnt = 0
 
-    def __init__(self, label=None):
+    def __init__(self, label=None, label_instr_node=None):
         self.idx = BasicBlock.cnt
         BasicBlock.cnt += 1
         self.label = label if label is not None else f"bb_{self.idx}"
         self.phi_instrs: dict[str, PhiInstruction] = {}
-        self.instrs: list[Instruction] = []
+        self.label_instr_node: ListNode[Instruction] = label_instr_node
+        self.instr_nodes: list[ListNode[Instruction]] = []
         self.precursors = set()
         self.successors = set()
 
         self.val_map: dict[str, str] = None
 
     def __str__(self):
-        return f"{self.label}: {len(self.instrs)}"
+        return f"{self.label}: {len(self.instr_nodes)}"
 
     def __repr__(self):
         return self.__str__()
@@ -68,7 +71,7 @@ def construct_cfg(func, verbose=False):
                 bb.successors.add(inst["label"])
             bb = BasicBlock(inst["label"])
         elif "op" in inst:
-            bb.instrs.append(Instruction(inst, idx))
+            bb.instr_nodes.append(Instruction(inst, idx))
             if inst["op"] == "br" or inst["op"] == "jmp":
                 bb.successors.update(inst["labels"])
                 block_map[bb.label] = bb
@@ -119,7 +122,58 @@ class CFG:
             self.children: list["CFG.DomNode"] = []
 
     def __init__(self, func, construct_dag=False):
-        self.bbs: dict[str, BasicBlock] = construct_cfg(func)
+        self.func = func
+        self.inst_list: LinkedList[Instruction] = LinkedList[Instruction]()
+        instrs: list[Instruction] = []
+        for idx, inst in enumerate(self.func["instrs"]):
+            instrs.append(Instruction(inst, idx))
+        link_node_list: list[ListNode[Instruction]] = self.inst_list.list_to_linked(
+            val_list=instrs
+        )
+        # build cfg
+        self.bbs: dict[str, BasicBlock] = {}
+        block_map: dict[str, BasicBlock] = {}
+        bb = BasicBlock(ENTRY_NAME)
+        for idx, node in enumerate(link_node_list):
+            inst = node.val.instr
+            if "label" in inst:
+                block_map[bb.label] = bb
+                if bb.successors is not None and len(bb.successors) == 0:
+                    bb.successors.add(inst["label"])
+                bb = BasicBlock(inst["label"], node)
+            elif "op" in inst:
+                bb.instr_nodes.append(node)
+                if inst["op"] == "br" or inst["op"] == "jmp":
+                    bb.successors.update(inst["labels"])
+                    block_map[bb.label] = bb
+                    bb = BasicBlock()
+                elif inst["op"] == "ret":
+                    bb.successors = None
+                    block_map[bb.label] = bb
+                    bb = BasicBlock()
+            else:
+                raise ValueError("Unknown")
+        block_map[bb.label] = bb
+        for bb in block_map.values():
+            if bb.successors is not None:
+                for label in bb.successors:
+                    block_map[label].precursors.add(bb.label)
+
+        # clean up
+        bfs_list = deque()
+        bfs_list.append(block_map[ENTRY_NAME])
+        while bfs_list:
+            bb: BasicBlock = bfs_list.popleft()
+            self.bbs[bb.label] = bb
+            if bb.successors is not None:
+                for suc in bb.successors:
+                    if suc not in self.bbs:
+                        bfs_list.append(block_map[suc])
+        for bb in self.bbs.values():
+            bb.precursors &= self.bbs.keys()
+            if bb.successors is not None:
+                bb.successors &= self.bbs.keys()
+
         self.dom_tree: dict[str, CFG.DomNode] = None
         self.dom_frontier: dict[str, set[str]] = None
         if construct_dag:
@@ -128,7 +182,15 @@ class CFG:
             self.dag_bbs: dict[str, BasicBlock] = None
 
     def construct_dag(self):
-        self.dag_bbs: dict[str, BasicBlock] = copy.deepcopy(self.bbs)
+        self.dag_bbs: dict[str, BasicBlock] = {}
+        for bb_label, real_bb in self.bbs.items():
+            fake_bb = BasicBlock(bb_label)
+            fake_bb.precursors.update(real_bb.precursors)
+            if real_bb.successors is None:
+                fake_bb.successors = None
+            else:
+                fake_bb.successors.update(real_bb.successors)
+            self.dag_bbs[bb_label] = fake_bb
 
         def analysis_path(current_path: list[str]):
             current_bb = current_path[-1]

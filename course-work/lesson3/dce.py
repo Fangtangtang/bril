@@ -1,6 +1,6 @@
 import sys
 import json
-from utility.cfg import construct_cfg, BasicBlock, Instruction
+from utility.cfg import CFG, BasicBlock, Instruction
 from utility.lvn import LVNTable, Const
 from utility.transform import clean
 
@@ -24,15 +24,14 @@ def dce_v1(program):
     return program
 
 
-def dce_v2(program):
-    update = False
+def dce(program):
     for func in program["functions"]:
-        bbs: dict[str, BasicBlock] = construct_cfg(func)
-        for bb in bbs.values():
+        cfg = CFG(func)
+        for bb in cfg.bbs.values():
             used_with_def = {}
-            for i in range(len(bb.instrs)):
-                idx = len(bb.instrs) - 1 - i
-                inst: Instruction = bb.instrs[idx]
+            for i in range(len(bb.instr_nodes)):
+                idx = len(bb.instr_nodes) - 1 - i
+                inst: Instruction = bb.instr_nodes[idx].val
                 if inst is not None:
                     if "dest" in inst.instr:
                         if (
@@ -63,13 +62,14 @@ def dce_v2(program):
 
 
 def lvn(func):
-    bbs: dict[str, BasicBlock] = construct_cfg(func)
+    cfg = CFG(func)
     
-    for bb in bbs.values():
+    for bb in cfg.bbs.values():
         rename_map: dict[str, str] = {}
         var2num: dict[str, int] = {}
         lvn_table = LVNTable()
-        for instr in bb.instrs:
+        for instr_node in bb.instr_nodes:
+            instr = instr_node.val
             args = []
             if "args" in instr.instr:
                 for i, arg in enumerate(instr.instr["args"]):
@@ -115,7 +115,8 @@ def lvn(func):
         for name_, new_name_ in rename_map.items():
             if name_ != new_name_:
                 rename[new_name_] = name_
-        for instr in bb.instrs:
+        for instr_node in bb.instr_nodes:
+            instr= instr_node.val
             if "args" in instr.instr:
                 for i, arg in enumerate(instr.instr["args"]):
                     if arg in rename:
@@ -134,5 +135,5 @@ if __name__ == "__main__":
     for func in program["functions"]:
         lvn(func)
     # print(json.dumps((program)))
-    dce_v2(program)
+    dce(program)
     print(json.dumps(program))

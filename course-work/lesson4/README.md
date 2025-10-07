@@ -1,4 +1,9 @@
 # Lesson4
+```bash
+turnt -e dce core/*.bril
+turnt -e dce float/*.bril
+turnt -e dce long/*.bril
+```
 ## Constant propagation
 In this task, I implemented constant propagation using the data-flow analysis framework.
 

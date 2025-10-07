@@ -100,7 +100,8 @@ def run_lvn(bb:BasicBlock, live_in: dict = None):
     rename_map: dict[str, str] = {}
     var2num: dict[str, int] = {}
     lvn_table = LVNTable()
-    for instr in bb.instrs:
+    for instr_node in bb.instr_nodes:
+        instr= instr_node.val
         args = []
         if "args" in instr.instr:
             for i, arg in enumerate(instr.instr["args"]):
@@ -149,7 +150,8 @@ def run_lvn(bb:BasicBlock, live_in: dict = None):
     for name_, new_name_ in rename_map.items():
         if name_ != new_name_:
             rename[new_name_] = name_
-    for instr in bb.instrs:
+    for instr_node in bb.instr_nodes:
+        instr = instr_node.val
         if "args" in instr.instr:
             for i, arg in enumerate(instr.instr["args"]):
                 if arg in rename:

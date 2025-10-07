@@ -16,7 +16,7 @@ def to_ssa(func):
             defs: dict[str, str] = {}
             for phi_name, phi in bb.phi_instrs.items():
                 defs[phi_name] = phi.instr["type"]
-            for instr in bb.instrs:
+            for instr in bb.instr_nodes:
                 if "dest" in instr:
                     assert "type" in instr
                     defs[instr["dest"]] = instr["type"]
@@ -39,7 +39,7 @@ def to_ssa(func):
             name_cnt += 1
             bb.val_map[org_name] = new_name
             phi.instr["dest"] = new_name
-        for instr in bb.instrs:
+        for instr in bb.instr_nodes:
             # rename use
             if "args" in instr.instr:
                 for idx, arg in instr.instr["args"]:
@@ -58,7 +58,7 @@ def to_ssa(func):
                     phi.add_value(prec, cfg.bbs[prec].val_map[org_name])
                 else:
                     # insert variable def placeholder in prec
-                    cfg.bbs[prec].instrs
+                    cfg.bbs[prec].instr_nodes
 
 
 if __name__ == "__main__":

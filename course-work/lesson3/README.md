@@ -29,5 +29,7 @@ output.out = "-"
 
 under `benchmarks` run  
 ```bash
-turnt -e dce */*.bril
+turnt -e dce core/*.bril
+turnt -e dce float/*.bril
+turnt -e dce long/*.bril
 ```

@@ -1,4 +1,8 @@
 # Lesson 5
+```bash
+turnt -e dom */*.bril
+```
+
 ## Dominance
 - `A` dominates `B` iff all paths from the entry to `B` include `A`.
 - The dominator tree is a convenient data structure for storing the dominance relationships in an entire function. The recursive children of a given node in a tree are the nodes that that node dominates.
