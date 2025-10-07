@@ -18,6 +18,23 @@ class Instruction:
         return self.__str__()
 
 
+class PhiInstruction(Instruction):
+    def __init__(self, new_def, new_def_type):
+        phi = {
+            "args": [],
+            "dest": new_def,
+            "op": "phi",
+            "type": new_def_type,
+        }
+        super().__init__(phi, -1)
+        # bb label -> variable name
+        self.label2value: dict[str, str] = {}
+
+    def add_value(self, label, var):
+        self.label2value[label]= var
+        self.instr["args"].append(var)
+        self.instr["args"].append(label)
+
 class BasicBlock:
     cnt = 0
 
@@ -25,9 +42,12 @@ class BasicBlock:
         self.idx = BasicBlock.cnt
         BasicBlock.cnt += 1
         self.label = label if label is not None else f"bb_{self.idx}"
+        self.phi_instrs: dict[str, PhiInstruction] = {}
         self.instrs: list[Instruction] = []
         self.precursors = set()
         self.successors = set()
+
+        self.val_map: dict[str, str] = None
 
     def __str__(self):
         return f"{self.label}: {len(self.instrs)}"
@@ -91,8 +111,17 @@ def construct_cfg(func, verbose=False):
 
 
 class CFG:
+    class DomNode:
+        def __init__(self, name, depth, parent: "CFG.DomNode"):
+            self.bb_label = name
+            self.depth = depth
+            self.parent = parent
+            self.children: list["CFG.DomNode"] = []
+
     def __init__(self, func, construct_dag=False):
         self.bbs: dict[str, BasicBlock] = construct_cfg(func)
+        self.dom_tree: dict[str, CFG.DomNode] = None
+        self.dom_frontier: dict[str, set[str]] = None
         if construct_dag:
             self.construct_dag()
         else:
@@ -147,6 +176,55 @@ class CFG:
                 if all(pred in order for pred in bb.precursors):
                     order.append(bb_label)
         return order
+
+    def build_dom(self):
+        if self.dom_tree is not None:
+            return
+
+        ordered_labels = self.topological_order()
+
+        def lca(node1: CFG.DomNode, node2: CFG.DomNode):
+            while node1.depth > node2.depth:
+                node1 = node1.parent
+            while node2.depth > node1.depth:
+                node2 = node2.parent
+            while node1 != node2:
+                node1 = node1.parent
+                node2 = node2.parent
+            return node1
+
+        self.dom_tree: dict[str, CFG.DomNode] = {}
+        for bb_label in ordered_labels:
+            if bb_label == ENTRY_NAME:
+                self.dom_tree[ENTRY_NAME] = CFG.DomNode(ENTRY_NAME, 0, None)
+            else:
+                if len(self.dag_bbs[bb_label].precursors) == 0:
+                    continue
+                dom = None
+                for pred in self.dag_bbs[bb_label].precursors:
+                    if dom is None:
+                        dom = self.dom_tree[pred]
+                    else:
+                        dom = lca(dom, self.dom_tree[pred])
+                self.dom_tree[bb_label] = CFG.DomNode(bb_label, dom.depth + 1, dom)
+
+        imm_doms: dict[str, str] = {ENTRY_NAME: None}
+        for name, node in self.dom_tree.items():
+            if name != ENTRY_NAME:
+                imm_doms[name] = node.parent.bb_label
+
+        self.dom_frontier: dict[str, set[str]] = {
+            name: set() for name in imm_doms.keys()
+        }
+
+        for name in self.bbs.keys():
+            bb = self.bbs[name]
+            if len(bb.precursors) >= 2:
+                for pred in bb.precursors:
+                    runner = pred
+                    while runner != imm_doms[bb.label]:
+                        self.dom_frontier[runner].add(bb.label)
+                        runner = imm_doms[runner]
 
     # TODO: dump CFG
 
