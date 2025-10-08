@@ -113,13 +113,12 @@ class CFG:
         ):
             assert len(block_map[ENTRY_NAME].successors) == 1
             entry = block_map[list(block_map[ENTRY_NAME].successors)[0]]
-            entry.precursors.clear()
+            entry_op = Instruction({"label": "end"}, -1)
             assert entry.label_instr_node is not None
-            bfs_list.append(entry)
-            self.entry_name = entry.label
-        else:
-            bfs_list.append(block_map[ENTRY_NAME])
-            self.entry_name = ENTRY_NAME
+            block_map[ENTRY_NAME].label_instr_node= self.inst_list.insert_before(entry.label_instr_node, entry_op)
+           
+        bfs_list.append(block_map[ENTRY_NAME])
+        self.entry_name = ENTRY_NAME
         while bfs_list:
             bb: BasicBlock = bfs_list.popleft()
             self.bbs[bb.label] = bb

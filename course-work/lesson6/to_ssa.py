@@ -1,6 +1,6 @@
 import sys
 import json
-from utility.cfg import CFG, PhiInstruction, Instruction
+from utility.cfg import CFG, PhiInstruction, Instruction, BasicBlock
 
 
 # copied from https://github.com/sampsyo/bril/blob/main/examples/is_ssa.py
@@ -20,7 +20,25 @@ def is_ssa(bril):
     return True
 
 
-def to_ssa(func):
+def insert_at_end(inst, bb: BasicBlock, cfg: CFG):
+    if len(bb.instr_nodes) > 0:
+        last_op = bb.instr_nodes[-1].val.instr["op"]
+        if  last_op in {"br", "jmp", "ret"}:
+            if len(bb.instr_nodes) == 1:
+                node_ = cfg.inst_list.insert_after(bb.label_instr_node, inst)
+            else:
+                node_ = cfg.inst_list.insert_after(bb.instr_nodes[-2], inst)
+            bb.instr_nodes.insert(-1, node_)
+            return
+        node_ = cfg.inst_list.insert_after(bb.instr_nodes[-1], inst)
+    elif bb.label_instr_node is not None:
+        node_ = cfg.inst_list.insert_after(bb.label_instr_node, inst)
+    else:
+        raise RuntimeError("Fail to resolve")
+    bb.instr_nodes.append(node_)
+
+
+def to_ssa(func, update_func=True):
     cfg = CFG(func)
     cfg.build_dom()
 
@@ -80,17 +98,19 @@ def to_ssa(func):
             bb.rename_map.update(cfg.bbs[node.parent.bb_label].rename_map)
 
         # phi instructions
-        for org_name, phi in bb.phi_instrs.items():
-            new_name = f"{org_name}_{name_cnt}"
-            name_cnt += 1
-            bb.rename_map[org_name] = new_name
-            phi.instr["dest"] = new_name
+        # for org_name, phi in bb.phi_instrs.items():
+        #     new_name = f"{org_name}_{name_cnt}"
+        #     name_cnt += 1
+        #     bb.rename_map[org_name] = new_name
+        #     phi.instr["dest"] = new_name
+        #     print(phi.instr)
 
         for instr_node in bb.instr_nodes:
             instr = instr_node.val
             # rename use
             if "args" in instr.instr:
                 for idx, arg in enumerate(instr.instr["args"]):
+                    # print(arg, bb.rename_map[arg])
                     instr.instr["args"][idx] = bb.rename_map[arg]
             # rename def and update map
             if "dest" in instr.instr:
@@ -115,19 +135,31 @@ def to_ssa(func):
                         "op": "undef",
                         "type": phi.instr["type"],
                     }
-                    if len(cfg.bbs[prec].instr_nodes) > 0:
-                        node_ = cfg.inst_list.insert_after(
-                            cfg.bbs[prec].instr_nodes[-1], Instruction(undef_inst, -1)
-                        )
-                    elif cfg.bbs[prec].label_instr_node is not None:
-                        node_ = cfg.inst_list.insert_before(
-                            cfg.bbs[prec].label_instr_node, Instruction(undef_inst, -1)
-                        )
-                    else:
-                        raise RuntimeError("Fail to resolve")
-                    cfg.bbs[prec].instr_nodes.append(node_)
+                    node_ = insert_at_end(
+                        Instruction(undef_inst, -1), cfg.bbs[prec], cfg
+                    )
                     cfg.bbs[prec].rename_map[org_name] = new_name
                 phi.add_value(prec, cfg.bbs[prec].rename_map[org_name])
+
+    if update_func:
+        cfg.update_func_inst()
+
+    return cfg
+
+
+def eliminate_phi(cfg: CFG):
+    for bb in cfg.bbs.values():
+        for phi in bb.phi_instrs.values():
+            var_name = phi.instr["dest"]
+            # set
+            for val, label in zip(phi.instr["args"], phi.instr["labels"]):
+                prev = cfg.bbs[label]
+                set_inst = {"args": [var_name, val], "op": "set"}
+                insert_at_end(Instruction(set_inst, -1), prev, cfg)
+            # get
+            phi.instr["op"] = "get"
+            phi.instr.pop("labels")
+            phi.instr.pop("args")
 
     cfg.update_func_inst()
 
@@ -140,8 +172,9 @@ if __name__ == "__main__":
     else:
         # json from stdin
         program = json.loads("".join(sys.stdin.readlines()))
-    ckpt = json.dumps(program)
+    # ckpt = json.dumps(program)
     for func in program["functions"]:
-        to_ssa(func)
+        cfg = to_ssa(func, False)
+        eliminate_phi(cfg)
     assert is_ssa(program)
-    print(ckpt)
+    print(json.dumps(program))
