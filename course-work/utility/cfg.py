@@ -20,6 +20,7 @@ class PhiInstruction(Instruction):
     def __init__(self, new_def, new_def_type):
         phi = {
             "args": [],
+            "labels": [],
             "dest": new_def,
             "op": "phi",
             "type": new_def_type,
@@ -31,7 +32,7 @@ class PhiInstruction(Instruction):
     def add_value(self, label, var):
         self.label2value[label] = var
         self.instr["args"].append(var)
-        self.instr["args"].append(label)
+        self.instr["labels"].append(label)
 
 
 class BasicBlock:
@@ -47,7 +48,7 @@ class BasicBlock:
         self.precursors = set()
         self.successors = set()
 
-        self.val_map: dict[str, str] = None
+        self.rename_map: dict[str, str] = None
 
     def __str__(self):
         return f"{self.label}: {len(self.instr_nodes)}"

@@ -39,7 +39,20 @@ class LinkedList(Generic[T]):
             cur = cur.next
         return val_list
 
-    def insert_after(self, node: ListNode[T], new_val: T):
-        new_node = ListNode[T](new_val, node, node.next)
+    def insert_after(self, node: ListNode[T], new_val: T) -> ListNode[T]:
+        new_node = ListNode[T](new_val, node.next, node)
+        if node.next is not None:
+            node.next.prev = new_node
+        else:
+            self.tail = new_node
         node.next = new_node
-        new_node.prev = new_node
+        return new_node
+
+    def insert_before(self, node: ListNode[T], new_val: T) -> ListNode[T]:
+        new_node = ListNode(new_val, node, node.prev)
+        if node.prev is not None:
+            node.prev.next = new_node
+        else:
+            self.head = new_node
+        node.prev = new_node
+        return new_node
