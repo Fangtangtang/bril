@@ -100,14 +100,6 @@ def to_ssa(func, update_func=True):
         else:
             bb.rename_map.update(cfg.bbs[node.parent.bb_label].rename_map)
 
-        # phi instructions
-        # for org_name, phi in bb.phi_instrs.items():
-        #     new_name = f"{org_name}_{name_cnt}"
-        #     name_cnt += 1
-        #     bb.rename_map[org_name] = new_name
-        #     phi.instr["dest"] = new_name
-        #     print(phi.instr)
-
         for instr_node in bb.instr_nodes:
             instr = instr_node.val
             # rename use

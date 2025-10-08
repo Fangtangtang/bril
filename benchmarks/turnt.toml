@@ -25,7 +25,7 @@ output.out = "-"
 
 [envs.ssa]
 default = false
-command = "bril2json < {filename} | python3 ../course-work/lesson6/to_ssa.py | brili -p {args}"
+command = "bril2json < {filename} | python3 ../course-work/lesson6/to_ssa.py | brili -p {args} 2> {filename}.log"
 output.out = "-"
 
 [envs.brilirs]
