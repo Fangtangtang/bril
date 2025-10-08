@@ -1,6 +1,7 @@
 import sys
 import json
 from utility.cfg import CFG, PhiInstruction, Instruction, BasicBlock
+from utility.transform import clean
 
 
 # copied from https://github.com/sampsyo/bril/blob/main/examples/is_ssa.py
@@ -22,14 +23,16 @@ def is_ssa(bril):
 
 def insert_at_end(inst, bb: BasicBlock, cfg: CFG):
     if len(bb.instr_nodes) > 0:
-        last_op = bb.instr_nodes[-1].val.instr["op"]
-        if  last_op in {"br", "jmp", "ret"}:
-            if len(bb.instr_nodes) == 1:
-                node_ = cfg.inst_list.insert_after(bb.label_instr_node, inst)
-            else:
-                node_ = cfg.inst_list.insert_after(bb.instr_nodes[-2], inst)
-            bb.instr_nodes.insert(-1, node_)
-            return
+        # ctrl flow op will not be invalidated
+        if bb.instr_nodes[-1].val.instr is not None:
+            last_op = bb.instr_nodes[-1].val.instr["op"]
+            if last_op in {"br", "jmp", "ret"}:
+                if len(bb.instr_nodes) == 1:
+                    node_ = cfg.inst_list.insert_after(bb.label_instr_node, inst)
+                else:
+                    node_ = cfg.inst_list.insert_after(bb.instr_nodes[-2], inst)
+                bb.instr_nodes.insert(-1, node_)
+                return
         node_ = cfg.inst_list.insert_after(bb.instr_nodes[-1], inst)
     elif bb.label_instr_node is not None:
         node_ = cfg.inst_list.insert_after(bb.label_instr_node, inst)
@@ -147,7 +150,7 @@ def to_ssa(func, update_func=True):
     return cfg
 
 
-def eliminate_phi(cfg: CFG):
+def eliminate_phi_in_ssa(cfg: CFG):
     for bb in cfg.bbs.values():
         for phi in bb.phi_instrs.values():
             var_name = phi.instr["dest"]
@@ -164,6 +167,25 @@ def eliminate_phi(cfg: CFG):
     cfg.update_func_inst()
 
 
+def eliminate_phi_out_ssa(cfg: CFG):
+    for bb in cfg.bbs.values():
+        for phi in bb.phi_instrs.values():
+            var_name = phi.instr["dest"]
+            var_type = phi.instr["type"]
+            for val, label in zip(phi.instr["args"], phi.instr["labels"]):
+                prev = cfg.bbs[label]
+                id_inst = {
+                    "args": [val],
+                    "dest": var_name,
+                    "op": "id",
+                    "type": var_type,
+                }
+                insert_at_end(Instruction(id_inst, -1), prev, cfg)
+            # get
+            phi.instr = None
+    cfg.update_func_inst()
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         assert len(sys.argv) == 2
@@ -172,9 +194,14 @@ if __name__ == "__main__":
     else:
         # json from stdin
         program = json.loads("".join(sys.stdin.readlines()))
-    # ckpt = json.dumps(program)
+
+    SSA = True
     for func in program["functions"]:
         cfg = to_ssa(func, False)
-        eliminate_phi(cfg)
-    assert is_ssa(program)
+        if SSA:
+            eliminate_phi_in_ssa(cfg)
+        else:
+            eliminate_phi_out_ssa(cfg)
+            clean(func)
+    # assert is_ssa(program)
     print(json.dumps(program))
