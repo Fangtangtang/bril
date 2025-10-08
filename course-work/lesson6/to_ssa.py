@@ -1,6 +1,23 @@
 import sys
 import json
-from utility.cfg import CFG, PhiInstruction, Instruction, ENTRY_NAME
+from utility.cfg import CFG, PhiInstruction, Instruction
+
+
+# copied from https://github.com/sampsyo/bril/blob/main/examples/is_ssa.py
+def is_ssa(bril):
+    """Check whether a Bril program is in SSA form.
+
+    Every function in the program may assign to each variable once.
+    """
+    for func in bril["functions"]:
+        assigned = set()
+        for instr in func["instrs"]:
+            if "dest" in instr:
+                if instr["dest"] in assigned:
+                    return False
+                else:
+                    assigned.add(instr["dest"])
+    return True
 
 
 def to_ssa(func):
@@ -15,7 +32,7 @@ def to_ssa(func):
             # name -> type
             defs: dict[str, str] = {}
             # function arguments are also 'def'
-            if bb.label == ENTRY_NAME:
+            if bb.label == cfg.entry_name and "args" in func:
                 for arg in func["args"]:
                     defs[arg["name"]] = arg["type"]
             for phi_name, phi in bb.phi_instrs.items():
@@ -48,15 +65,27 @@ def to_ssa(func):
 
     name_cnt = 0
     # step 2: rename
-    for bb in cfg.bbs.values():
-        # org name -> rename
+    # BFS on the dom tree
+    work_list = [cfg.dom_tree[cfg.entry_name]]
+    while len(work_list) > 0:
+        node = work_list[0]
+        work_list = work_list[1:]
+        bb = cfg.bbs[node.bb_label]
         bb.rename_map = {}
-        # get defs
+        if node.bb_label == cfg.entry_name:
+            if "args" in func:
+                for arg in func["args"]:
+                    bb.rename_map[arg["name"]] = arg["name"]
+        else:
+            bb.rename_map.update(cfg.bbs[node.parent.bb_label].rename_map)
+
+        # phi instructions
         for org_name, phi in bb.phi_instrs.items():
             new_name = f"{org_name}_{name_cnt}"
             name_cnt += 1
             bb.rename_map[org_name] = new_name
             phi.instr["dest"] = new_name
+
         for instr_node in bb.instr_nodes:
             instr = instr_node.val
             # rename use
@@ -70,6 +99,10 @@ def to_ssa(func):
                 name_cnt += 1
                 instr.instr["dest"] = new_name
                 bb.rename_map[org_name] = new_name
+
+        work_list.extend(node.children)
+
+    # rename phi values
     for bb in cfg.bbs.values():
         for org_name, phi in bb.phi_instrs.items():
             for prec in bb.precursors:
@@ -107,6 +140,8 @@ if __name__ == "__main__":
     else:
         # json from stdin
         program = json.loads("".join(sys.stdin.readlines()))
+    ckpt = json.dumps(program)
     for func in program["functions"]:
         to_ssa(func)
-    print(json.dumps(program))
+    assert is_ssa(program)
+    print(ckpt)

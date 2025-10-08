@@ -23,6 +23,11 @@ default = false
 command = "bril2json < {filename} | python3 ../course-work/lesson5/dom.py | brili -p {args}"
 output.out = "-"
 
+[envs.ssa]
+default = false
+command = "bril2json < {filename} | python3 ../course-work/lesson6/to_ssa.py | brili -p {args}"
+output.out = "-"
+
 [envs.brilirs]
 default = false
 command = "cargo run --manifest-path ../brilirs/Cargo.toml --quiet -- --text --file {filename} -p {args}"

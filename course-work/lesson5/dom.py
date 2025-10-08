@@ -1,6 +1,6 @@
 import sys
 import json
-from utility.cfg import CFG, BasicBlock, ENTRY_NAME
+from utility.cfg import CFG, BasicBlock
 
 
 def get_dom(cfg: CFG):
@@ -28,9 +28,9 @@ def get_dom(cfg: CFG):
 def build_dom_tree(cfg: CFG):
     doms: dict[str, set[str]] = get_dom(cfg)
     # entry has no immediately dominator
-    imm_doms: dict[str, str] = {ENTRY_NAME: None}
+    imm_doms: dict[str, str] = {cfg.entry_name: None}
     for bb_label, dom in doms.items():
-        if bb_label == ENTRY_NAME:
+        if bb_label == cfg.entry_name:
             continue
         candidates = dom - {bb_label}
         imm_dom = None
@@ -70,8 +70,8 @@ def build_dom_tree_eff(cfg: CFG):
 
     dom_tree: dict[str, DomNode] = {}
     for bb_label in ordered_labels:
-        if bb_label == ENTRY_NAME:
-            dom_tree[ENTRY_NAME] = DomNode(ENTRY_NAME, 0, None)
+        if bb_label == cfg.entry_name:
+            dom_tree[cfg.entry_name] = DomNode(cfg.entry_name, 0, None)
         else:
             if len(cfg.dag_bbs[bb_label].precursors) == 0:
                 continue
@@ -83,9 +83,9 @@ def build_dom_tree_eff(cfg: CFG):
                     dom = lca(dom, dom_tree[pred])
             dom_tree[bb_label] = DomNode(bb_label, dom.depth + 1, dom)
 
-    imm_doms: dict[str, str] = {ENTRY_NAME: None}
+    imm_doms: dict[str, str] = {cfg.entry_name: None}
     for name, node in dom_tree.items():
-        if name != ENTRY_NAME:
+        if name != cfg.entry_name:
             imm_doms[name] = node.parent.bb_label
     return imm_doms
 
@@ -116,7 +116,7 @@ def check_dom(bbs: dict[str, BasicBlock]):
                     new_path.append(suc)
                     get_path(new_path)
 
-    get_path([ENTRY_NAME])
+    get_path([cfg.entry_name])
     sample_doms: dict[str, set[str]] = {
         bb_label: set(bbs.keys()) for bb_label in bbs.keys()
     }

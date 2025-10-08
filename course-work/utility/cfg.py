@@ -64,6 +64,8 @@ class CFG:
             self.depth = depth
             self.parent = parent
             self.children: list["CFG.DomNode"] = []
+            if parent is not None:
+                parent.children.append(self)
 
     def __init__(self, func, construct_dag=False):
         self.func = func
@@ -105,14 +107,45 @@ class CFG:
 
         # clean up
         bfs_list = deque()
-        bfs_list.append(block_map[ENTRY_NAME])
+        if (
+            block_map[ENTRY_NAME].label_instr_node is None
+            and len(block_map[ENTRY_NAME].instr_nodes) == 0
+        ):
+            assert len(block_map[ENTRY_NAME].successors) == 1
+            entry = block_map[list(block_map[ENTRY_NAME].successors)[0]]
+            entry.precursors.clear()
+            assert entry.label_instr_node is not None
+            bfs_list.append(entry)
+            self.entry_name = entry.label
+        else:
+            bfs_list.append(block_map[ENTRY_NAME])
+            self.entry_name = ENTRY_NAME
         while bfs_list:
             bb: BasicBlock = bfs_list.popleft()
             self.bbs[bb.label] = bb
             if bb.successors is not None:
+                replaced_suc = {}
                 for suc in bb.successors:
                     if suc not in self.bbs:
-                        bfs_list.append(block_map[suc])
+                        unvisited_bb: BasicBlock = block_map[suc]
+                        while (
+                            unvisited_bb.label_instr_node is None
+                            and len(unvisited_bb.instr_nodes) == 0
+                        ):
+                            assert (
+                                len(unvisited_bb.precursors) == 1
+                                and len(unvisited_bb.successors) == 1
+                            )
+                            replaced_suc[suc] = list(unvisited_bb.successors)[0]
+                            block_map[replaced_suc[suc]].precursors.remove(
+                                unvisited_bb.label
+                            )
+                            block_map[replaced_suc[suc]].precursors.add(bb.label)
+                            unvisited_bb = block_map[replaced_suc[suc]]
+                        bfs_list.append(unvisited_bb)
+                for k, v in replaced_suc.items():
+                    bb.successors.remove(k)
+                    bb.successors.add(v)
         for bb in self.bbs.values():
             bb.precursors &= self.bbs.keys()
             if bb.successors is not None:
@@ -151,7 +184,7 @@ class CFG:
                         if current_bb in self.dag_bbs[suc].precursors:
                             self.dag_bbs[suc].precursors.remove(current_bb)
 
-        analysis_path([ENTRY_NAME])
+        analysis_path([self.entry_name])
 
     # TODO: parse from dumped file
 
@@ -169,13 +202,13 @@ class CFG:
                     dfs_post_order(suc)
             order.append(bb_label)
 
-        dfs_post_order(ENTRY_NAME)
+        dfs_post_order(self.entry_name)
         return list(reversed(order))
 
     def topological_order(self):
         if self.dag_bbs is None:
             self.construct_dag()
-        order = [ENTRY_NAME]
+        order = [self.entry_name]
         while len(order) < len(self.dag_bbs):
             for bb_label, bb in self.dag_bbs.items():
                 if bb_label in order:
@@ -202,8 +235,8 @@ class CFG:
 
         self.dom_tree: dict[str, CFG.DomNode] = {}
         for bb_label in ordered_labels:
-            if bb_label == ENTRY_NAME:
-                self.dom_tree[ENTRY_NAME] = CFG.DomNode(ENTRY_NAME, 0, None)
+            if bb_label == self.entry_name:
+                self.dom_tree[self.entry_name] = CFG.DomNode(self.entry_name, 0, None)
             else:
                 if len(self.dag_bbs[bb_label].precursors) == 0:
                     continue
@@ -215,9 +248,9 @@ class CFG:
                         dom = lca(dom, self.dom_tree[pred])
                 self.dom_tree[bb_label] = CFG.DomNode(bb_label, dom.depth + 1, dom)
 
-        imm_doms: dict[str, str] = {ENTRY_NAME: None}
+        imm_doms: dict[str, str] = {self.entry_name: None}
         for name, node in self.dom_tree.items():
-            if name != ENTRY_NAME:
+            if name != self.entry_name:
                 imm_doms[name] = node.parent.bb_label
 
         self.dom_frontier: dict[str, set[str]] = {
