@@ -27,3 +27,26 @@ Found loop iterator   %i1 = alloca i32, align 4
 The condition is:         %cmp3 = icmp sgt i32 %4, 0
 =====================
 ```
+
+## Another better loop iterator analyzer
+Use `anal-v2.cpp` in [CMakeLists.txt](./skeleton/CMakeLists.txt)
+
+run 
+```bash
+clang -O1 -fpass-plugin=`echo build/skeleton/analPass.*` -emit-llvm -S tests/t2.c -o t2.ll
+```
+
+Output:
+```txt
+Function: f
+===================================
+Loop: for.body
+-----------------------------------
+Iter:   %indvars.iv = phi i64 [ 0, %for.body.preheader ], [ %indvars.iv.next, %for.body ]       ({0,+,2}<nuw><nsw><%for.body>)
+Bound:   %0 = zext nneg i32 %cnt to i64
+Cmp Predicate: ult
+===================================
+
+Function: g
+Function: main
+```
