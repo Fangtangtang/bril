@@ -1,0 +1,14 @@
+# simple for loop
+@main {
+  v0: int = const 0;
+  c1: int = const 1;
+  bound: int = const 20;
+  index: int = id v0;
+.for.cond.0:
+  v4: bool = lt index bound;
+  br v4 .for.body.0 .for.end.0;
+.for.body.0:
+  index: int = add c1 index;
+  jmp .for.cond.0;
+.for.end.0:
+}

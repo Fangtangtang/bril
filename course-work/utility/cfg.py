@@ -67,6 +67,21 @@ class CFG:
             if parent is not None:
                 parent.children.append(self)
 
+        def dominate(self, other: "CFG.DomNode"):
+            while other.parent is not None:
+                if other.parent is self:
+                    return True
+                other = other.parent
+            return False
+
+    class Loop:
+        def __init__(self, header: BasicBlock, tail: BasicBlock):
+            self.header: BasicBlock = header
+            self.tail: BasicBlock = tail
+            self.nodes: set[str] = set()
+            self.nodes.add(header.label)
+            self.preheader: BasicBlock = None
+
     def __init__(self, func, construct_dag=False):
         self.func = func
         self.inst_list: LinkedList[Instruction] = LinkedList[Instruction]()
@@ -115,8 +130,10 @@ class CFG:
             entry = block_map[list(block_map[ENTRY_NAME].successors)[0]]
             entry_op = Instruction({"label": "end"}, -1)
             assert entry.label_instr_node is not None
-            block_map[ENTRY_NAME].label_instr_node= self.inst_list.insert_before(entry.label_instr_node, entry_op)
-           
+            block_map[ENTRY_NAME].label_instr_node = self.inst_list.insert_before(
+                entry.label_instr_node, entry_op
+            )
+
         bfs_list.append(block_map[ENTRY_NAME])
         self.entry_name = ENTRY_NAME
         while bfs_list:
@@ -157,6 +174,8 @@ class CFG:
         else:
             # only placeholders for dom analysis
             self.dag_bbs: dict[str, BasicBlock] = None
+
+        self.natural_loops: list[CFG.Loop] = []
 
     def construct_dag(self):
         self.dag_bbs: dict[str, BasicBlock] = {}
@@ -264,6 +283,46 @@ class CFG:
                     while runner != imm_doms[bb.label]:
                         self.dom_frontier[runner].add(bb.label)
                         runner = imm_doms[runner]
+
+    def find_natural_loop(self):
+        assert self.dom_tree is not None
+        potential_natural_loops:list[CFG.Loop] = []
+        for dom_node in self.dom_tree.values():
+            bb = self.bbs[dom_node.bb_label]
+            for prec in bb.precursors:
+                prec_node = self.dom_tree[prec]
+                if dom_node.dominate(prec_node):
+                    tail = self.bbs[prec]
+                    init_nodes: set[str] = set()
+
+                    # add the sub-tree in the dom tree as the initial set
+                    def append_node(node_: CFG.DomNode):
+                        for child in node_.children:
+                            append_node(child)
+                        init_nodes.add(node_.bb_label)
+
+                    append_node(dom_node)
+                    loop = CFG.Loop(bb, tail)
+                    # filter out some nodes, only care about precursors of the tail
+                    def check_prec(node_: BasicBlock) ->bool:
+                        if node_ == bb:
+                            return True
+                        for prec in node_.precursors:
+                            if prec not in init_nodes:
+                                return False
+                            if not check_prec(self.bbs[prec]):
+                                return False
+                        loop.nodes.add(node_.label)
+                        return True
+
+                    if check_prec(tail):
+                        potential_natural_loops.append(loop)
+        for loop in potential_natural_loops:
+            print("-----")
+            print(loop.header.label, " --> ", loop.tail.label)
+            print(loop.nodes)
+            print()
+        
 
     def update_func_inst(self):
         instr_list = []
