@@ -1,0 +1,18 @@
+# back-to-back for loops
+@main(input: int) {
+  v0: int = const 0;
+  c1: int = const 1;
+  index: int = id v0;
+.for.cond.0:
+  v4: bool = lt index input;
+  br v4 .for.body.0 .for.body.1;
+.for.body.0:
+  index: int = add index c1;
+  v_f0: bool = eq index input;
+  br v_f0 .for.end.0 .for.cond.0;
+.for.body.1:
+  index: int = sub index c1;
+  v_f1: bool = eq index input;
+  br v_f1 .for.body.0 .for.cond.0;
+.for.end.0:
+}
