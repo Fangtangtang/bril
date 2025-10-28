@@ -1,4 +1,5 @@
 from collections import deque
+from graphviz import Digraph
 from .ds import LinkedList, ListNode
 
 ENTRY_NAME = "entry"
@@ -332,3 +333,13 @@ class CFG:
         self.func["instrs"] = instr_list
 
     # TODO: dump CFG
+    def dump(self, output_dir, file_name="cfg"):
+        dot = Digraph(comment="CFG")
+        dot.attr(rankdir="LR")
+        for node in self.bbs.values():
+            dot.node(node.label, label=node.label)
+        for node in self.bbs.values():
+            if node.successors is not None:
+                for suc in node.successors:
+                    dot.edge(node.label, suc)
+        dot.render(file_name, directory=output_dir, format="pdf")

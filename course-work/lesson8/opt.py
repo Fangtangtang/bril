@@ -4,6 +4,7 @@ from utility.cfg import CFG
 
 def opt(func):
     cfg = CFG(func)
+    cfg.dump("tests")
     cfg.build_dom()
     cfg.find_natural_loop()
 
